@@ -49,6 +49,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # **先删掉 golden-report.md 再跑。**
+      # 不删的话，下面那道「无 diff」检查有一条假通过路径：钩子根本没触发时，
+      # 仓库里 checkout 出来的旧文件原封不动，git diff 一样是干净的，
+      # verify.sh 第 10 步的 head 也照样成功——于是「证据是这次跑出来的」这个前提
+      # 从未被验证过。删掉之后，没被重新生成 = 文件缺失 = 两处同时红。
+      - name: 删除上一轮的 golden 证据（强制它必须被重新生成）
+        shell: bash
+        run: rm -f docs/golden-report.md
+
       # verify.sh 内部已经处理了 Windows 的 GBK 控制台编码与绝对路径脱敏。
       # 它失败不中断、末尾按累计失败数返回退出码，所以这一步红了就是真有步骤红了。
       - name: scripts/verify.sh（18 步）
@@ -74,10 +83,17 @@ jobs:
           if ! git diff --quiet -- docs/validation-report.md; then
             echo "::notice::validation-report.md 有 diff（含生成时间戳，属预期）"
           fi
+          if [ ! -f docs/golden-report.md ]; then
+            echo "::error::docs/golden-report.md 没有被重新生成。"
+            echo "本步骤开始前它被显式删除，pytest 的 sessionfinish 钩子本该重写它。"
+            echo "文件不在 = 钩子没触发（或 16 组没跑齐 / 本轮 exitstatus 非 0）。"
+            exit 1
+          fi
           if ! git diff --quiet -- docs/golden-report.md; then
             echo "::error::docs/golden-report.md 与仓库内版本不一致。"
-            echo "它不含时间戳，同样的代码应当产出同样的表——"
+            echo "它不含时间戳，同样的代码在任何机器上都应当产出同样的表——"
             echo "有 diff 意味着它被手改过，或者比较结果存在非确定性。"
             git diff -- docs/golden-report.md
             exit 1
           fi
+          echo "golden-report.md 在本机重新生成后与仓库内版本逐字节一致。"

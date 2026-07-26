@@ -196,8 +196,9 @@ SPEC §17：最终交付报告的「验证证据」与「测试数据结果」�
    最可能在这里首次见血。
 2. `timeout_seconds` 落到请求层，不是解析器内。
 3. 补 `evidence.locator` 与外键——**在开始做 PDF 之前，不是之后**。
-4. 把 `tools/determinism.py` 的语料换成 fixtures 全量：现在它只验一组自己现场构造的
-   3 文档场景，16 组 golden 的跨进程一致性其实还没有证据。
+4. 把 `tools/determinism.py` 的语料换成 fixtures 全量。优先级已被 CI 降低——
+   CI 每次 push 都在另一台机器上重新生成 `golden-report.md` 并比对，
+   那 16 组的跨机器一致性现在有证据了；但换哈希种子这一维度仍只覆盖那一组孤立场景。
 
 ---
 

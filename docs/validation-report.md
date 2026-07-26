@@ -4,7 +4,7 @@
 > 每一步都记录了实际命令、完整输出与退出码。失败不中断，跑完全部再汇总。
 
 ```
-生成时间（本机）: 2026-07-27 03:36:42 +0800
+生成时间（本机）: 2026-07-27 03:42:39 +0800
 仓库根           : $REPO_ROOT
 Python 解释器    : $BACKEND/.venv
 ```
@@ -92,7 +92,7 @@ Success: no issues found in 44 source files
 ........................................................................ [ 91%]
 ........................................................................ [ 99%]
 .........                                                                [100%]
-945 passed in 20.95s
+945 passed in 16.47s
 ```
 
 ## 8. 零 skip / MVP-1 反选数量
@@ -118,7 +118,7 @@ Success: no issues found in 44 source files
 ```
 ........................................................................ [ 53%]
 ...............................................................          [100%]
-135 passed, 810 deselected in 4.17s
+135 passed, 810 deselected in 3.98s
 ```
 
 ## 10. Golden 指标报告总览
@@ -167,7 +167,7 @@ Success: no issues found in 44 source files
 
 ```
 ......................................                                   [100%]
-38 passed in 1.27s
+38 passed in 1.21s
 ```
 
 ## 12. 只产已声明枚举（enum_subset）
@@ -178,7 +178,7 @@ Success: no issues found in 44 source files
 
 ```
 ........                                                                 [100%]
-8 passed, 937 deselected in 1.74s
+8 passed, 937 deselected in 1.71s
 ```
 
 ## 13. 确定性：PYTHONHASHSEED=1
@@ -202,7 +202,7 @@ Success: no issues found in 44 source files
 ........................................................................ [ 91%]
 ........................................................................ [ 99%]
 .........                                                                [100%]
-945 passed in 17.16s
+945 passed in 17.94s
 ```
 
 ## 14. 确定性：跨进程 3 次逐字节一致
@@ -258,19 +258,19 @@ Success: no issues found in 44 source files
 
 [1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m<repo>/frontend[39m
 
- [32m✓[39m tests/identifiers.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
- [32m✓[39m tests/explanations.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/explanations.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/identifiers.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 5[2mms[22m[39m
  [32m✓[39m tests/apiBase.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
- [32m✓[39m tests/uiLanguage.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 457[2mms[22m[39m
- [32m✓[39m tests/upload.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 548[2mms[22m[39m
- [32m✓[39m tests/projects.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 661[2mms[22m[39m
- [32m✓[39m tests/workbench.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 1740[2mms[22m[39m
-   [33m[2m✓[22m[39m 差异工作台[2m > [22m修改审核状态与备注后发出正确的 PUT 请求 [33m 326[2mms[22m[39m
+ [32m✓[39m tests/uiLanguage.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 351[2mms[22m[39m
+ [32m✓[39m tests/upload.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 486[2mms[22m[39m
+ [32m✓[39m tests/projects.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 620[2mms[22m[39m
+ [32m✓[39m tests/workbench.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 1656[2mms[22m[39m
+   [33m[2m✓[22m[39m 差异工作台[2m > [22m修改审核状态与备注后发出正确的 PUT 请求 [33m 311[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
 [2m      Tests [22m [1m[32m62 passed[39m[22m[90m (62)[39m
-[2m   Start at [22m 03:38:01
-[2m   Duration [22m 5.07s[2m (transform 957ms, setup 3.04s, collect 4.04s, tests 3.43s, environment 8.04s, prepare 1.51s)[22m
+[2m   Start at [22m 03:43:52
+[2m   Duration [22m 4.39s[2m (transform 796ms, setup 2.35s, collect 3.02s, tests 3.13s, environment 6.41s, prepare 1.40s)[22m
 ```
 
 ## 18. 前端构建
@@ -292,7 +292,7 @@ computing gzip size...
 [2mdist/[22m[32mindex.html                 [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
 [2mdist/[22m[35massets/index-16_wxO6O.css  [39m[1m[2m  8.73 kB[22m[1m[22m[2m │ gzip:  2.36 kB[22m
 [2mdist/[22m[36massets/index-D9SwrVqz.js   [39m[1m[2m296.96 kB[22m[1m[22m[2m │ gzip: 94.53 kB[22m
-[32m✓ built in 1.25s[39m
+[32m✓ built in 1.17s[39m
 ```
 
 ---
