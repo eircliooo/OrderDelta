@@ -21,23 +21,22 @@
 
 ## 2. ⚠️ 动手之前必读的三件事
 
-### 2.1 仓库有 `.git`，但**零提交、无远程**
+### 2.1 已推送到**公开**仓库
 
-```
-git log  ->  fatal: your current branch 'main' does not have any commits yet
-git remote -v  ->  (空)
-git status  ->  全部是 ?? untracked
-```
+远程：`https://github.com/eircliooo/OrderDelta.git`，分支 `main`，
+**visibility = PUBLIC**。首个提交与 `.gitattributes` 提交已在上面。
 
-`.git` 是开发过程中某个环节 `git init` 建的，**从未提交过任何东西**。
-所有成果只存在于工作区。
-
-> **一次 `git clean -fd` 或 `git reset --hard` 会清空全部代码。**
-> 接手后第一件事建议是建首个提交。用户此前明确要求：**不要执行破坏性 git 命令、
-> 不要自行推送远程、不要自行建 PR。** 请沿用这条约束，除非用户改口。
-
-顺带：`docs/` 整个是 untracked，意味着 `validation-report.md` 与 `golden-report.md`
-这两份「交付证据」目前也不在版本控制里，本地重跑会无痕覆盖。
+- 用户此前的约束仍然有效：**不要执行 `git reset --hard` / `git clean` 等破坏性命令；
+  除非用户明确要求，不要自行推送或建 PR。**（本次推送是用户明确要求的。）
+- 仓库是公开的，所以**推之前必须扫一遍绝对路径与密钥**。已经踩过一次：
+  `docs/validation-report.md` 里每一步的命令行都带着
+  `/c/Users/<用户名>/...`，共 15 处——这既是隐私泄漏，也直接违反
+  SPEC §12.1 / §15.1「不泄露服务器绝对路径」。已在 `verify.sh` 里加
+  `sanitize()` 统一抹成 `<repo>`（三种写法：`/c/Users/...`、`C:/Users/...`、
+  `C:\Users\...`）。**新增任何会打印路径的验证步骤时，记得它会被原样写进公开报告。**
+- `docs/validation-report.md` 与 `docs/golden-report.md` 现在已进版本控制，
+  但它们仍是**产物**：本地跑一次 `verify.sh` / `pytest` 就会被重写，
+  于是 `git status` 会变脏。这是预期行为，不是 bug。
 
 ### 2.2 Python 不在 PATH
 
@@ -189,15 +188,14 @@ SPEC §17：最终交付报告的「验证证据」与「测试数据结果」�
 
 ## 8. 下一步建议（按优先级）
 
-1. **建首个 git 提交**。零提交状态下任何误操作都不可逆。
-2. **拿 3–5 份真实客户单据跑一遍**。这是唯一能证伪「自产 fixture 全绿」的动作。
+1. **拿 3–5 份真实客户单据跑一遍**。这是唯一能证伪「自产 fixture 全绿」的动作。
    16 组 fixtures 由 `tools/fixtures/build.py` 自产，生成器与提取器共享同一套别名表——
    全绿只证明引擎自洽，**不代表能读懂客户发来的真实单据**。表头打分器和别名表
    最可能在这里首次见血。
-3. **决定 §5.1 的产品语义**（规则变更后旧裁决怎么办），然后再动代码。
-4. `timeout_seconds` 落到请求层，不是解析器内。
-5. 补 `evidence.locator` 与外键——**在开始做 PDF 之前，不是之后**。
-6. 把 `tools/determinism.py` 的语料换成 fixtures 全量：现在它只验一组自己现场构造的
+2. **决定 §5.1 的产品语义**（规则变更后旧裁决怎么办），然后再动代码。
+3. `timeout_seconds` 落到请求层，不是解析器内。
+4. 补 `evidence.locator` 与外键——**在开始做 PDF 之前，不是之后**。
+5. 把 `tools/determinism.py` 的语料换成 fixtures 全量：现在它只验一组自己现场构造的
    3 文档场景，16 组 golden 的跨进程一致性其实还没有证据。
 
 ---
