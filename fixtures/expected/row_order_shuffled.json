@@ -1,0 +1,12 @@
+{
+  "case_id": "row_order_shuffled",
+  "description": "三份内容相同但行顺序不同：顺序不该产生任何差异",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [],
+  "max_unexpected_critical": 0,
+  "total_differences": 0
+}

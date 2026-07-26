@@ -1,0 +1,85 @@
+[project]
+name = "orderdelta-backend"
+version = "0.1.0"
+description = "外贸订单差异雷达 — 后端（MVP-0，纯 XLSX）"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy>=2.0.36",
+    "openpyxl>=3.1.5",
+    "python-multipart>=0.0.17",
+    "jinja2>=3.1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    # starlette 的 TestClient 已改用 httpx2；filterwarnings=error 下必须装它
+    "httpx2>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-openpyxl>=3.1",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# 硬约束 #16：零 skip。MVP-1 测试以 mvp1 标记反选，反选数量必须打印。
+addopts = "-ra --strict-markers -m 'not mvp1'"
+markers = [
+    "mvp1: 属于 MVP-1 范围，Gate-0 阶段被反选（数量必须打印进 validation-report）",
+    "enum_subset: 只产已声明枚举的机械检查（Gate-0 第 16 条）",
+    "golden: golden fixtures 比对",
+]
+filterwarnings = ["error"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "A",        # builtins shadowing
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "PTH",      # pathlib
+    "RUF",
+]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # 中文全角标点在注释/文档字符串里是刻意的
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试函数名刻意用中文描述业务规则（test_买方砍价不是critical），
+# N802 判定非 ASCII 小写字母不算 lowercase，这里豁免。
+"tests/*" = ["S101", "N802"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = []
+exclude = ['^\.venv/']
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

@@ -1,0 +1,69 @@
+{
+  "case_id": "currency_mismatch",
+  "description": "PI 币种写成 EUR，与 Q/PO 的 USD 不一致：金额结构上无法比较",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "currency",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "grand_total",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-100",
+      "field_name": "unit_price",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-100",
+      "field_name": "line_total",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-200",
+      "field_name": "unit_price",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-200",
+      "field_name": "line_total",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-300",
+      "field_name": "unit_price",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-300",
+      "field_name": "line_total",
+      "difference_type": "INCOMPARABLE",
+      "severity": "REVIEW"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 8
+}

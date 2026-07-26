@@ -1,0 +1,27 @@
+{
+  "case_id": "pi_missing_sku",
+  "description": "PI 漏掉了已下单的 AB-300（漏货）",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-300",
+      "field_name": "internal_sku",
+      "difference_type": "UNMATCHED_LINE_ITEM",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "grand_total",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 2
+}

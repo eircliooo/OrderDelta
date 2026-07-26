@@ -1,0 +1,12 @@
+{
+  "case_id": "identical",
+  "description": "三份单据内容逐字一致：期望零差异，CRITICAL 误报必须为 0",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [],
+  "max_unexpected_critical": 0,
+  "total_differences": 0
+}

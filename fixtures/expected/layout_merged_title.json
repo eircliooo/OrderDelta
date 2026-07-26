@@ -1,0 +1,12 @@
+{
+  "case_id": "layout_merged_title",
+  "description": "版面变体：公司抬头 + 合并大标题；语义同 identical，期望仍是零差异",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [],
+  "max_unexpected_critical": 0,
+  "total_differences": 0
+}

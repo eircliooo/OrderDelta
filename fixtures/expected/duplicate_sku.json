@@ -1,0 +1,20 @@
+{
+  "case_id": "duplicate_sku",
+  "description": "PO 把 AB-100 拆成 600+400 两行：只能产出 AMBIGUOUS_MATCH 交人工",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-100",
+      "field_name": null,
+      "difference_type": "AMBIGUOUS_MATCH",
+      "severity": "REVIEW"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 1
+}

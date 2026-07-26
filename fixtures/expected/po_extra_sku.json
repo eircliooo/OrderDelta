@@ -1,0 +1,27 @@
+{
+  "case_id": "po_extra_sku",
+  "description": "PO 比 Q/PI 多了一个 AB-400（客户临时加订）",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-400",
+      "field_name": "internal_sku",
+      "difference_type": "UNMATCHED_LINE_ITEM",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "grand_total",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 2
+}

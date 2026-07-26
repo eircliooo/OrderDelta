@@ -1,0 +1,11 @@
+{
+  "case_id": "two_docs_only",
+  "description": "只上传 PO + PI 两份且内容一致：缺席的报价单不得产生任何差异",
+  "compared_roles": [
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [],
+  "max_unexpected_critical": 0,
+  "total_differences": 0
+}

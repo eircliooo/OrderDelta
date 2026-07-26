@@ -1,0 +1,762 @@
+/*
+ * 手写样式表。不引入任何 CSS 框架。
+ *
+ * 三条设计约束（来自需求，写在这里以免被后人「优化」掉）：
+ *   1. 严重度**不靠颜色单独承载**：形状记号 + 中文文字 + 颜色三重编码。
+ *      调色板避开纯红/纯绿对立，用「红 - 橙 - 蓝 - 灰」，对常见色觉障碍仍可区分。
+ *   2. **不做动画**：没有 transition / animation。表格是拿来核对数字的。
+ *   3. **1366x768 上整表可读**：正文 13px，表格 fixed 布局，列宽显式给定。
+ */
+
+:root {
+  --ink: #1b1b1f;
+  --ink-soft: #55565c;
+  --ink-faint: #7a7b82;
+  --line: #d5d7dd;
+  --line-soft: #e8e9ee;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+
+  --critical: #a4262c;
+  --critical-bg: #fdeceb;
+  --warning: #8a5300;
+  --warning-bg: #fdf3e2;
+  --review: #1b4f9c;
+  --review-bg: #eaf1fb;
+  --info: #4c4f56;
+  --info-bg: #eff0f3;
+  --unknown: #4c4f56;
+  --unknown-bg: #eff0f3;
+
+  --accent: #1b4f9c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+h2 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 15px;
+  margin: 20px 0 8px;
+}
+
+a {
+  color: var(--accent);
+}
+
+code.code {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  background: #eef0f4;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 0 4px;
+  word-break: break-all;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--ink-faint);
+}
+
+.hint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  display: block;
+}
+
+/* ------------------------------------------------------------------ 布局 */
+
+.app-head {
+  background: var(--panel);
+  border-bottom: 2px solid var(--line);
+  padding: 10px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brand {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brand-sub {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+/* 硬约束 #5：免责声明常驻可见 —— 不可关闭、不随滚动消失。 */
+.disclaimer {
+  flex: 1 1 320px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--info);
+  background: var(--info-bg);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.page {
+  padding: 16px 20px 48px;
+}
+
+.crumbs {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.work-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.work-head h2 {
+  margin-bottom: 2px;
+}
+
+/* ------------------------------------------------------------------ 按钮 */
+
+.btn {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 3px;
+  padding: 5px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  color: var(--ink-faint);
+  background: #f0f1f4;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-primary:disabled {
+  background: #b8bec9;
+  border-color: #b8bec9;
+  color: #fff;
+}
+
+.btn-secondary {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-danger {
+  border-color: var(--critical);
+  color: #fff;
+  background: var(--critical);
+  font-weight: 600;
+}
+
+.btn-quiet {
+  color: var(--ink-soft);
+}
+
+.btn-run {
+  font-size: 14px;
+  padding: 7px 22px;
+}
+
+/* ------------------------------------------------------------------ 横幅 */
+
+/* 硬约束 #4：覆盖横幅必须醒目，且不可折叠。 */
+.banner-coverage {
+  border: 2px solid var(--warning);
+  border-left-width: 8px;
+  background: var(--warning-bg);
+  padding: 10px 14px;
+  margin: 14px 0;
+}
+
+.banner-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--warning);
+}
+
+.banner-body {
+  margin: 2px 0;
+}
+
+/* ------------------------------------------------------------------ 上传槽位 */
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .slots {
+    grid-template-columns: 1fr;
+  }
+}
+
+.slot {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.slot-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-title {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tag {
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.tag-optional {
+  border-color: var(--review);
+  color: var(--review);
+  background: var(--review-bg);
+}
+
+.tag-correction {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: var(--warning-bg);
+  font-weight: 700;
+}
+
+.slot-meta {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 2px 8px;
+}
+
+.slot-meta > div {
+  display: contents;
+}
+
+.slot-meta dt {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.slot-meta dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.slot-empty {
+  color: var(--ink-faint);
+  margin: 8px 0 0;
+}
+
+.pstatus {
+  font-weight: 700;
+}
+
+.pstatus-ok {
+  color: var(--review);
+}
+
+.pstatus-warn {
+  color: var(--warning);
+}
+
+.pstatus-bad {
+  color: var(--critical);
+}
+
+.slot-problem {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--critical);
+  border-left: 4px solid var(--critical);
+  background: var(--critical-bg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.slot-problem .detail {
+  flex-basis: 100%;
+  color: var(--ink);
+}
+
+.slot-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-label {
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ 运行栏 */
+
+.run-bar {
+  margin: 14px 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------ 芯片 */
+
+.chips-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 3px;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-on {
+  border-width: 2px;
+  font-weight: 700;
+  box-shadow: inset 0 -3px 0 currentColor;
+}
+
+.chip-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.chip-critical {
+  color: var(--critical);
+  border-color: var(--critical);
+  background: var(--critical-bg);
+}
+
+.chip-warning {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.chip-review {
+  color: var(--review);
+  border-color: var(--review);
+  background: var(--review-bg);
+}
+
+.chip-info {
+  color: var(--info);
+  border-color: var(--info);
+  background: var(--info-bg);
+}
+
+.chip-pending {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ 筛选器 */
+
+.filters,
+.create-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 10px 0;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.filter input,
+.filter select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  min-width: 150px;
+}
+
+/* ------------------------------------------------------------------ 表格通用 */
+
+.list-table,
+.diff-table,
+.evidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.list-table th,
+.list-table td,
+.diff-table th,
+.diff-table td,
+.evidence-table th,
+.evidence-table td {
+  border: 1px solid var(--line-soft);
+  padding: 6px 8px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.list-table thead th,
+.diff-table thead th,
+.evidence-table thead th {
+  background: #eef0f4;
+  border-bottom: 2px solid var(--line);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini {
+  display: inline-flex;
+  gap: 3px;
+  align-items: baseline;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.mini-critical {
+  color: var(--critical);
+  background: var(--critical-bg);
+}
+
+.mini-warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.mini-review {
+  color: var(--review);
+  background: var(--review-bg);
+}
+
+.mini-info {
+  color: var(--info);
+  background: var(--info-bg);
+}
+
+.mini-zero {
+  color: var(--ink-faint);
+  background: transparent;
+  font-weight: 400;
+}
+
+.confirm {
+  border: 1px solid var(--critical);
+  background: var(--critical-bg);
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.confirm-text {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+/* ------------------------------------------------------------------ 差异表 */
+
+.diff-table {
+  table-layout: fixed;
+}
+
+.diff-table .col-sev {
+  width: 84px;
+}
+.diff-table .col-type {
+  width: 130px;
+}
+.diff-table .col-subject {
+  width: 130px;
+}
+.diff-table .col-field {
+  width: 84px;
+}
+.diff-table .col-values {
+  width: 230px;
+}
+.diff-table .col-explain {
+  width: auto;
+}
+.diff-table .col-review {
+  width: 250px;
+}
+
+.diff-group + .diff-group {
+  border-top: 2px solid var(--line);
+}
+
+.diff-row td {
+  border-bottom: none;
+}
+
+.diff-evidence-row td {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* 整行底色只是第三重提示，不是唯一信息载体。 */
+.row-critical {
+  background: var(--critical-bg);
+}
+
+.row-warning {
+  background: var(--warning-bg);
+}
+
+.row-review {
+  background: var(--review-bg);
+}
+
+.row-info {
+  background: var(--panel);
+}
+
+.sev {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.sev-critical {
+  color: var(--critical);
+  background: #fff;
+}
+
+.sev-warning {
+  color: var(--warning);
+  background: #fff;
+}
+
+.sev-review {
+  color: var(--review);
+  background: #fff;
+}
+
+.sev-info {
+  color: var(--info);
+  background: #fff;
+}
+
+.sev-unknown {
+  color: var(--unknown);
+  background: var(--unknown-bg);
+}
+
+.sev-mark {
+  font-size: 11px;
+}
+
+.subject {
+  display: inline-block;
+  max-width: 100%;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.explain {
+  line-height: 1.6;
+}
+
+.values {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.value-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: baseline;
+  padding: 2px 0;
+  border-bottom: 1px dotted var(--line-soft);
+}
+
+.value-row:last-child {
+  border-bottom: none;
+}
+
+.value-role {
+  color: var(--ink-soft);
+  min-width: 56px;
+}
+
+.value-text {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.value-parser,
+.value-reason {
+  flex-basis: 100%;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.value-warning {
+  flex-basis: 100%;
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.review-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.review select,
+.review input {
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  width: 100%;
+}
+
+.review-status-now {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stale {
+  margin: 4px 0 0;
+  padding: 5px 7px;
+  border: 1px solid var(--warning);
+  border-left: 4px solid var(--warning);
+  background: var(--warning-bg);
+  font-size: 12px;
+}
+
+.evidence-box {
+  margin-top: 6px;
+}
+
+.evidence-table {
+  font-size: 12px;
+}
+
+.raw-text {
+  display: block;
+  font-family: Consolas, 'Courier New', monospace;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.empty-state {
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  padding: 14px;
+  color: var(--ink-soft);
+}

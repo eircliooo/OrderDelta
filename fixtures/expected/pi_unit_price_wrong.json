@@ -1,0 +1,27 @@
+{
+  "case_id": "pi_unit_price_wrong",
+  "description": "PI 把 AB-200 单价改成 2.50 却没改行金额（真实世界最常见的一种错）",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-200",
+      "field_name": "unit_price",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "CALCULATION",
+      "subject_key": "PROFORMA_INVOICE#sku:AB-200#1",
+      "field_name": "line_total",
+      "difference_type": "CALCULATION_ERROR",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 2
+}

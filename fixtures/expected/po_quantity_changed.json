@@ -1,0 +1,34 @@
+{
+  "case_id": "po_quantity_changed",
+  "description": "客户 PO 把 AB-100 从 1000 改成 1200（PO 自身金额已同步）",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-100",
+      "field_name": "quantity",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-100",
+      "field_name": "line_total",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "grand_total",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 3
+}

@@ -1,0 +1,20 @@
+{
+  "case_id": "layout_chinese_headers",
+  "description": "版面变体：纯中文标签与表头；语义同 payment_terms_mismatch",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "payment_terms",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 1
+}

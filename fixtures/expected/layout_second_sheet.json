@@ -1,0 +1,27 @@
+{
+  "case_id": "layout_second_sheet",
+  "description": "版面变体：订单表在第二个 sheet；语义同 pi_unit_price_wrong",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "LINE_ITEM",
+      "subject_key": "SKU:AB-200",
+      "field_name": "unit_price",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    },
+    {
+      "scope": "CALCULATION",
+      "subject_key": "PROFORMA_INVOICE#sku:AB-200#1",
+      "field_name": "line_total",
+      "difference_type": "CALCULATION_ERROR",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 2
+}

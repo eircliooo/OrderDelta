@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# 运行期数据（用户订单内容，绝不入库）
+/data/
+!/data/.gitkeep
+
+# fixtures/orders 下的 xlsx **要提交**（约 356K）：
+# golden 测试会断言仓库内产物与生成器输出逐字节一致，以此抓出手改过的 fixture。
+# 手改的 fixture 一旦被当成「程序化自产」，docs/limitations.md 里的免责声明就成了假话。
+
+# 验证证据由 scripts/verify 生成，允许提交结果但不提交中间产物
+/docs/validation-report.tmp.md
+
+# 环境
+.env
+.env.local
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,20 @@
+{
+  "case_id": "incoterm_place_mismatch",
+  "description": "贸易术语同为 FOB 但地点不同：Q/PO 是 Ningbo，PI 是 Shanghai",
+  "compared_roles": [
+    "QUOTATION",
+    "PURCHASE_ORDER",
+    "PROFORMA_INVOICE"
+  ],
+  "required_differences": [
+    {
+      "scope": "DOCUMENT",
+      "subject_key": "PROJECT",
+      "field_name": "incoterm_named_place",
+      "difference_type": "VALUE_CONFLICT",
+      "severity": "CRITICAL"
+    }
+  ],
+  "max_unexpected_critical": 0,
+  "total_differences": 1
+}
