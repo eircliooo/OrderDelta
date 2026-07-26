@@ -6,13 +6,13 @@
 > 本文只回答那些「读代码读不出来、读文档会被误导」的东西：**现在到哪一步了、
 > 哪些地方文档在说谎、下一步该动哪里、以及动它之前必须知道什么。**
 >
-> 最后更新：2026-07-27（MVP-0 Gate-0 全绿之后）
+> 最后更新：2026-07-27（Gate-0 全绿 + 5.1/5.3 缺陷修复 + CI 接入之后）
 
 ---
 
 ## 1. 一句话现状
 
-**MVP-0（纯 XLSX 全链路）已完成，`bash scripts/verify.sh` 18 步全绿，940 条后端测试 + 62 条前端测试通过，零 skip。**
+**MVP-0（纯 XLSX 全链路）已完成，`bash scripts/verify.sh` 18 步全绿，945 条后端测试 + 62 条前端测试通过，零 skip。**
 
 能跑通的完整链路：上传 2–3 份 `.xlsx` → 解析提取 → SKU 精确匹配 → N 元比较 →
 证据落库 → 人工审核 → 自包含 HTML 报告 → 删除项目。
@@ -61,7 +61,7 @@ backend\.venv\Scripts\python.exe
 
 ```bash
 cd backend
-.venv/Scripts/python.exe -m pytest -q                 # 940 passed
+.venv/Scripts/python.exe -m pytest -q                 # 945 passed
 .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -106,30 +106,28 @@ SPEC §11.2 把它写作 `ValueResolver.snapshot(project_id)`，**本仓库没�
 
 ---
 
-## 5. 已知缺陷（按严重度排序）
+## 5. 缺陷台账（5.1 / 5.3 本轮已修）
 
-### 5.1 🔴 改了比较规则后，旧审核裁决会被静默继承
+### 5.1 ✅ 已修：改了比较规则后旧审核裁决被静默继承
 
-**这是当前最严重的一条，也是最像"已经有人看过了"的一条。**
+**这曾是最严重的一条。** 前提摘要原本只由取值构成，于是把某字段从 `REVIEW` 调成
+`CRITICAL` 后重跑，一条早被标成「已接受差异」的记录会原样带着旧裁决出现在报告里，
+看起来像「这条新的 CRITICAL 已经有人看过并接受了」——恰好在风险刚被调高时失去人工复核。
 
-- SPEC §3.2（`docs/SPEC.md:144`）把 `comparison_input_fingerprint` 定义为**三段**：
-  `docs:…|corrections:…|rules:…`
-- 实现（`services/projects.py::input_fingerprint`）只有前两段，**没有 `rules:` 段**
-- 更关键的是：强身份差异的继承**根本不看 fingerprint**，只比
-  `premise_digest == values_digest`，而 `values_digest`（`domain/identity.py:126`）
-  只由 `role=值` 构成
+两处一起补上（只堵一条等于没堵）：
 
-**失效形态**：把 `app/domain/fields.py` 里某字段从 `REVIEW` 调成 `CRITICAL` 后重跑，
-一条早就被标成「已接受差异」的记录会**原样带着旧裁决**出现在报告里，
-看起来像「这条新的 CRITICAL 已经有人看过并接受了」。
+- `input_fingerprint()` 补齐 SPEC §3.2 的第三段 `rules:`，值取
+  `sha256(render_comparison_rules_md())`。**不另写「规则版本号」**：那份 Markdown
+  已经是注册表的规范化全量序列化（归一化、比较方式、逐阶段严重度、容差、别名全在里面），
+  而手写版本号必然会被忘记递增——忘记的后果恰好是这个指纹存在的唯一目的失守。
+- `values_digest()` 新增必填关键字参数 `rule_signature`（严重度 + 规则 id）。
+  做成**必填**是刻意的：调用点漏改会直接 `TypeError`，不会静默用旧语义跑下去。
 
-**修的时候注意**：补 `rules:` 段只修好弱身份跨轮那一半。要真正闭合，规则版本必须进入
-**前提**比较（`values_digest` / `premise_digest`），代价是任何一次规则改动都会让
-**全部**裁决转为待确认。这是产品语义选择，不是纯技术选择——**建议先问用户**，
-不要自行拍板。
+结果是**只有严重度真的变了的那些差异**转为待确认，值和规则都没动的照常继承——
+不会因为一次无关的规则微调让人重审几百条。
 
-> 我没有直接改它，正是因为两条路的产品含义不同，而选错的那条会在用户毫无察觉时
-> 要么放过风险、要么让人重审几百条。
+> 验证过它会咬人：把 `identity.py` 里那行 `@rule=` 去掉，
+> `test_调高严重度后旧裁决不再被静默继承` 立刻红（实际继承了 `ACCEPTED_DIFFERENCE`）。
 
 ### 5.2 🟡 解析超时字段存在但零效果
 
@@ -139,10 +137,14 @@ SPEC §11.2 把它写作 `ValueResolver.snapshot(project_id)`，**本仓库没�
 插墙钟判断会把系统时钟读进解析路径，**直接破坏 Gate-0 第 15 条**
 （`tools.determinism` 的 3 个进程 sha256 一致会随机变红）。正确位置是请求层。
 
-### 5.3 🟡 删除单份文档会留下孤儿证据
+### 5.3 ✅ 已修：删除单份文档留下孤儿证据
 
-`evidence.document_id` **没有外键**（`db/models.py:174`），级联只挂在 `project_id` 上。
-删整个项目是干净的（有测试），删单份文档不是。
+`evidence.document_id` 仍然**没有外键**（级联只挂在 `project_id` 上），
+改的是语义：删掉一份文档 = 上一轮比较的输入已不成立，所以主动作废③计算产物
+（`_drop_computed`）并把项目退回 `DRAFT`。
+
+不这么做的话，那些证据行会留在库里、仍被 `difference.evidence_ids` 引用，
+报告里照样渲染出「引用原文：某某单元格」——指向一份已经不在项目里的文件。
 
 ### 5.4 其他未实现（已在 `limitations.md` 记账）
 
@@ -158,12 +160,12 @@ PDF 整线、Excel 导出、匹配二三级、Docker、Alembic、Playwright、LI
 
 | 坑 | 失效形态 |
 |---|---|
-| **`pytest -q -m golden` 会覆盖 `addopts` 里的 `-m 'not mvp1'`** | 现在 mvp1 标记数为 0 所以无害。MVP-1 开工后第一个加 `@pytest.mark.mvp1` 的人会发现 verify.sh 第 9、12 步开始跑本该被反选的测试。要写成 `-m 'golden and not mvp1'` |
+| **命令行 `-m` 会整体覆盖 `addopts` 里的 `-m 'not mvp1'`** | ✅ verify.sh 已改成 `-m 'golden and not mvp1'` / `'enum_subset and not mvp1'`。**你自己敲 `pytest -m xxx` 时同样会覆盖**，MVP-1 开工后要记得带上 |
 | **verify.sh 里任何会输出中文的新步骤都要带 `env PYTHONIOENCODING=utf-8`** | 否则 Windows 下按 GBK 编码落进报告，证据文件里出现乱码（已踩过一次） |
 | **改了规则导致 `total_differences` 对不上时，不要手改 `expected.json`** | 那是快照值，但 fixtures 有逐字节比对守着。唯一合法路径：改 `tools/fixtures/build.py` 里那一组的 `total_differences=` 并重跑生成器 |
 | **`filterwarnings = ["error"]`** | 升级任何依赖后，一条新的 `DeprecationWarning` 就会让一批测试变红，失败信息看起来和业务 bug 一模一样 |
 | **不要在 `frontend/src/` 下放 `*.test.ts`** | `vite.config.ts` 的 include 写死了 `tests/**`，放在 src 下的测试会被**静默跳过**，`npm test` 照样全绿 |
-| **仓库根的 `.env` 不会被读到** | `backend/app/core/config.py:18` 的 `env_file=".env"` 相对进程 CWD，而所有文档化的启动命令都在 `backend/` 下跑 |
+| ~~仓库根的 `.env` 不会被读到~~ | ✅ 已修：`config.py` 的 `env_file` 改成绝对路径 `REPO_ROOT / ".env"`。原先相对进程 CWD，而文档化的命令都在 `backend/` 下跑，配置「看起来生效了其实没生效」 |
 | **`GET /projects/{id}/differences` 读的是库里的旧结果，`report.html` 是现算的** | 两者可能不一致，且没有任何地方会提示 |
 
 其余高频坑（openpyxl 两次加载、`PRAGMA foreign_keys` 默认 OFF、表头别名禁止子串匹配、
@@ -192,10 +194,9 @@ SPEC §17：最终交付报告的「验证证据」与「测试数据结果」�
    16 组 fixtures 由 `tools/fixtures/build.py` 自产，生成器与提取器共享同一套别名表——
    全绿只证明引擎自洽，**不代表能读懂客户发来的真实单据**。表头打分器和别名表
    最可能在这里首次见血。
-2. **决定 §5.1 的产品语义**（规则变更后旧裁决怎么办），然后再动代码。
-3. `timeout_seconds` 落到请求层，不是解析器内。
-4. 补 `evidence.locator` 与外键——**在开始做 PDF 之前，不是之后**。
-5. 把 `tools/determinism.py` 的语料换成 fixtures 全量：现在它只验一组自己现场构造的
+2. `timeout_seconds` 落到请求层，不是解析器内。
+3. 补 `evidence.locator` 与外键——**在开始做 PDF 之前，不是之后**。
+4. 把 `tools/determinism.py` 的语料换成 fixtures 全量：现在它只验一组自己现场构造的
    3 文档场景，16 组 golden 的跨进程一致性其实还没有证据。
 
 ---

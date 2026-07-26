@@ -15,7 +15,15 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="ORDERDELTA_", env_file=".env", extra="ignore")
+    #: `env_file` 用**绝对路径**指向仓库根的 `.env`。
+    #:
+    #: 写相对路径 `".env"` 的话它是相对**进程 CWD** 的，而文档化的启动命令一律在
+    #: `backend/` 下执行 —— 于是按 `.env.example` 的说明在仓库根建了 `.env`、
+    #: 改了 `ORDERDELTA_DATA_DIR`，启动后数据照旧写进默认目录，且没有任何提示。
+    #: 配置「看起来生效了其实没生效」比配置项不存在更难查。
+    model_config = SettingsConfigDict(
+        env_prefix="ORDERDELTA_", env_file=REPO_ROOT / ".env", extra="ignore"
+    )
 
     #: 监听地址。**默认回环**，这是本 MVP 唯一的访问控制手段。
     host: str = "127.0.0.1"

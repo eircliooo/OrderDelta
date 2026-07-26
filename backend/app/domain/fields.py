@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -777,3 +778,18 @@ def render_comparison_rules_md() -> str:
         )
     )
     return "\n".join(lines) + "\n"
+
+
+def rules_digest() -> str:
+    """比较规则整体的版本指纹。SPEC §3.2 要求 `comparison_input_fingerprint` 含 `rules:` 段。
+
+    直接哈希 `render_comparison_rules_md()` 的全文，而不是另外手写一份「规则版本号」：
+
+    - 那份 Markdown 已经是注册表的**规范化全量序列化**（归一化方式、比较方式、
+      逐链路阶段的严重度、容差、别名表全在里面），改任何一条规则它必变；
+    - 手写版本号必然会被忘记递增 —— 而忘记的后果恰好是「规则改了但系统当作没改」，
+      也就是这个指纹存在的唯一目的失守；
+    - 它已经被 `tools.gen_docs --check` 每次验证过与代码同步（硬约束 #12），
+      等于这个指纹的稳定性有现成的机械保证。
+    """
+    return hashlib.sha256(render_comparison_rules_md().encode("utf-8")).hexdigest()

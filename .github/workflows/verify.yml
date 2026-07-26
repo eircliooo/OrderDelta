@@ -1,0 +1,83 @@
+# Gate-0 全量验证。跑的就是 scripts/verify.sh 那 18 步，不维护第二套清单。
+#
+# **刻意用 windows-latest**：这个项目的文档、路径写法（backend\.venv\Scripts\python.exe）、
+# 换行处理与目标用户全都在 Windows 上。在 ubuntu 上跑绿只能证明「在别的系统上没问题」，
+# 而真实用户第一次跑失败的地方恰恰是 Windows 特有的（行尾、GBK 控制台编码、路径分隔符）。
+#
+# **刻意按 README 的方式现场建 venv**，而不是直接用 setup-python 的解释器：
+# 这样 CI 顺带验证了「照着 README 装能不能装起来」，而不只是「代码本身对不对」。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支上新的推送取消旧的运行——这套跑一次好几分钟，排队没有意义。
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate0:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 建 venv 并装后端依赖（照 README 第 2 步）
+        shell: bash
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/Scripts/python.exe -m pip install --upgrade pip
+          backend/.venv/Scripts/python.exe -m pip install -e "backend[dev]"
+
+      - name: 装前端依赖
+        shell: bash
+        working-directory: frontend
+        run: npm ci
+
+      # verify.sh 内部已经处理了 Windows 的 GBK 控制台编码与绝对路径脱敏。
+      # 它失败不中断、末尾按累计失败数返回退出码，所以这一步红了就是真有步骤红了。
+      - name: scripts/verify.sh（18 步）
+        shell: bash
+        run: bash scripts/verify.sh
+
+      # 无论成败都传：失败时这份报告就是最直接的诊断材料，逐步记录了命令与完整输出。
+      - name: 上传证据报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: |
+            docs/validation-report.md
+            docs/golden-report.md
+          if-no-files-found: warn
+
+      # 两份证据是 pytest / verify.sh 的产物，正常情况下重跑应当逐字节一致。
+      # 出现 diff 说明有人手改过它们，或者存在非确定性——两种都必须看见。
+      - name: 证据文件不得与仓库内版本不一致
+        shell: bash
+        run: |
+          if ! git diff --quiet -- docs/validation-report.md; then
+            echo "::notice::validation-report.md 有 diff（含生成时间戳，属预期）"
+          fi
+          if ! git diff --quiet -- docs/golden-report.md; then
+            echo "::error::docs/golden-report.md 与仓库内版本不一致。"
+            echo "它不含时间戳，同样的代码应当产出同样的表——"
+            echo "有 diff 意味着它被手改过，或者比较结果存在非确定性。"
+            git diff -- docs/golden-report.md
+            exit 1
+          fi

@@ -101,13 +101,13 @@ run "后端全部测试"            "$BACKEND" "$PY" -m pytest -q
 # 硬约束 #14：上一步的「N passed」是反选之后的数字，反选数量必须一并摆出来。
 # PYTHONIOENCODING：Windows 下 stdout 被重定向时按 GBK 编码，中文会进报告变成乱码。
 run "零 skip / MVP-1 反选数量" "$BACKEND" env PYTHONIOENCODING=utf-8 "$PY" -m tools.mvp1_report
-run "Golden 测试（单独）"     "$BACKEND" "$PY" -m pytest -q -m golden
+run "Golden 测试（单独）"     "$BACKEND" "$PY" -m pytest -q -m "golden and not mvp1"
 # SPEC §17：每组一张表由 pytest 的 sessionfinish 钩子写 docs/golden-report.md（实为 16 组）。
 # 把总览表也收进本报告：文件缺失时 head 直接非 0，不会出现「跑绿了但没产出证据」。
 run "Golden 指标报告总览"     "$REPO_ROOT" head -30 docs/golden-report.md
 run "架构守卫测试"            "$BACKEND" "$PY" -m pytest -q tests/test_guards.py
 # Gate-0 第 16 条：运行时产出的枚举值必须是声明全集的子集
-run "只产已声明枚举（enum_subset）" "$BACKEND" "$PY" -m pytest -q -m enum_subset
+run "只产已声明枚举（enum_subset）" "$BACKEND" "$PY" -m pytest -q -m "enum_subset and not mvp1"
 run "确定性：PYTHONHASHSEED=1" "$BACKEND" env PYTHONHASHSEED=1 "$PY" -m pytest -q
 # Gate-0 第 15 条：连跑 3 次逐字节一致。必须**跨进程且换哈希种子**——
 # 同进程内跑三次共用同一个种子下的迭代顺序，三次当然一样，抓不到「用了未排序的 set」。

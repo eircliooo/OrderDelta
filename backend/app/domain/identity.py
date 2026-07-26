@@ -123,15 +123,24 @@ def difference_key(
     return _digest(payload)
 
 
-def values_digest(values_by_role: dict[str, str | None]) -> str:
+def values_digest(values_by_role: dict[str, str | None], *, rule_signature: str) -> str:
     """差异所依据的「前提」摘要。
 
     重跑后 values_digest != premise_digest 即表示用户当初的判断依据已变化，
     审核状态置 NEEDS_CONFIRMATION 并展示旧前提（SPEC §11.3）。
 
     必须按角色名排序，否则 dict 顺序会污染摘要。
+
+    **`rule_signature` 为什么必须进来（严重度 + 产出它的规则 id）：**
+    人当初判断的不只是「PO 写 1200、PI 写 1000」这组值，还包括系统当时告诉他
+    「这条是 REVIEW」。只摘要取值的话，把该字段从 REVIEW 调成 CRITICAL 之后重跑，
+    前提摘要不变 → 那条早被标成「已接受差异」的记录会原样带着旧裁决出现在报告里，
+    看起来像「这条新的 CRITICAL 已经有人看过并接受了」——恰好在风险刚被调高的时候
+    失去人工复核。带上规则签名后，**只有严重度真的变了的那些差异**转为待确认，
+    值和规则都没动的照常继承，不会因为一次无关的规则微调让人重审几百条。
     """
     parts = [f"{role}={values_by_role[role] or ''}" for role in sorted(values_by_role)]
+    parts.append(f"@rule={rule_signature}")
     return _digest("|".join(parts))
 
 

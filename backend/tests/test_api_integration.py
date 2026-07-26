@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.db.session import init_db, reset_engine
-from app.domain.enums import DocumentRole
+from app.domain.enums import DocumentRole, Severity
 from tests.conftest import BASE_GRAND_TOTAL, BASE_ITEMS, order_rows, write_xlsx
 
 _TITLES = {
@@ -258,6 +258,48 @@ class TestFullFlow:
                 count = session.scalar(select(func.count()).select_from(model))
                 assert count == 0, f"{model.__tablename__} 残留 {count} 行孤儿数据"
 
+    def test_删单份文档不留孤儿证据(self, client: TestClient, tmp_path: Path) -> None:
+        """`evidence.document_id` 没有外键，级联只挂在 `project_id` 上。
+
+        不主动清理的话，删掉一份单据后它的证据行会留在库里，仍被
+        `difference.evidence_ids` 引用，报告里照样渲染出「引用原文：某某单元格」——
+        指向一份已经不在项目里的文件，用户无从核对，也无从察觉。
+        """
+        from sqlalchemy import func
+        from sqlalchemy import select as sa_select
+
+        from app.db.models import Difference, Evidence, MatchGroup
+        from app.db.session import session_scope
+
+        project_id = _setup_project(client, tmp_path)
+        assert client.post(f"/api/v1/projects/{project_id}/compare").status_code == 200
+
+        with session_scope() as session:
+            before = session.scalar(
+                sa_select(func.count())
+                .select_from(Evidence)
+                .where(Evidence.project_id == project_id)
+            )
+        assert before, "比较后本该有证据，没有的话这个测试测不到东西"
+
+        docs = client.get(f"/api/v1/projects/{project_id}").json()["documents"]
+        assert (
+            client.delete(f"/api/v1/projects/{project_id}/documents/{docs[0]['id']}").status_code
+            == 204
+        )
+
+        with session_scope() as session:
+            for model in (Evidence, Difference, MatchGroup):
+                left = session.scalar(
+                    sa_select(func.count()).select_from(model).where(model.project_id == project_id)
+                )
+                assert left == 0, f"删文档后 {model.__tablename__} 还剩 {left} 行孤儿"
+
+        # 项目要退回未比较状态，否则界面会拿着一份已作废的结论当最新结果显示
+        project = client.get(f"/api/v1/projects/{project_id}").json()
+        assert project["status"] == "DRAFT"
+        assert project["compared_at"] is None
+
 
 class TestRerunPreservesReviews:
     """SPEC §11.3：**本产品最核心的一条行为**。"""
@@ -319,6 +361,57 @@ class TestRerunPreservesReviews:
             if by_key[i["difference_key"]]["review_status"] == "CONFIRMED_DIFFERENCE"
         ]
         assert preserved, "重跑后所有裁决都丢了——这正是本产品最不能出的错"
+
+    def test_调高严重度后旧裁决不再被静默继承(
+        self, client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """这个产品最阴的一种失效：**值一个字没动，只是规则把风险调高了。**
+
+        原实现里前提摘要只由取值构成，于是把某字段从 REVIEW 调成 CRITICAL 之后重跑，
+        那条早被标成「已接受差异」的记录会原样带着旧裁决出现在报告里——
+        看起来像「这条新的 CRITICAL 已经有人看过并接受了」，恰好在风险刚被调高、
+        最该重看的时候失去人工复核。而且它不会以任何形式报错。
+        """
+        project_id = _setup_project(client, tmp_path)
+        client.post(f"/api/v1/projects/{project_id}/compare")
+        items = client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+
+        target = next(i for i in items if i["severity"] != "CRITICAL" and i["field_name"])
+        assert (
+            client.put(
+                f"/api/v1/projects/{project_id}/reviews/{target['difference_key']}",
+                json={"review_status": "ACCEPTED_DIFFERENCE", "review_note": "老板同意按这个走"},
+            ).status_code
+            == 200
+        )
+
+        # 规则改动：把这一条的严重度整体调高（等价于有人编辑了 fields.py 的严重度表）
+        import app.comparison.engine as engine_module
+
+        original = engine_module.severity_for
+
+        def louder(key: str, scope: Any, stage: Any) -> Severity:
+            if key == target["field_name"]:
+                return Severity.CRITICAL
+            return original(key, scope, stage)
+
+        monkeypatch.setattr(engine_module, "severity_for", louder)
+
+        client.post(f"/api/v1/projects/{project_id}/compare")
+        rerun = {
+            i["difference_key"]: i
+            for i in client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+        }
+        after = rerun.get(target["difference_key"])
+        assert after is not None, "差异本身不该消失，消失就说明这个测试测错了东西"
+        assert after["severity"] == "CRITICAL", "规则改动没有生效，本测试没有验证到任何东西"
+        assert after["review_status"] == "NEEDS_CONFIRMATION", (
+            "严重度被调高后，旧裁决仍被原样继承——"
+            f"实际状态 {after['review_status']}。这正是本测试要堵的失效。"
+        )
+        assert after["review_note"] == "老板同意按这个走", (
+            "备注不该丢，人还要靠它回忆当初为什么接受"
+        )
 
     def test_前提变化的差异置为待确认且保留备注(self, client: TestClient, tmp_path: Path) -> None:
         project_id = _setup_project(client, tmp_path)

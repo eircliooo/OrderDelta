@@ -137,18 +137,50 @@ class TestDifferenceKey:
 
 
 class TestValuesDigest:
+    RULE = "CRITICAL:po_to_pi.quantity"
+
     def test_角色顺序不影响摘要(self) -> None:
-        a = values_digest({"PURCHASE_ORDER": "5000", "PROFORMA_INVOICE": "4800"})
-        b = values_digest({"PROFORMA_INVOICE": "4800", "PURCHASE_ORDER": "5000"})
+        a = values_digest(
+            {"PURCHASE_ORDER": "5000", "PROFORMA_INVOICE": "4800"}, rule_signature=self.RULE
+        )
+        b = values_digest(
+            {"PROFORMA_INVOICE": "4800", "PURCHASE_ORDER": "5000"}, rule_signature=self.RULE
+        )
         assert a == b
 
     def test_值变化则摘要变化(self) -> None:
-        a = values_digest({"PURCHASE_ORDER": "5000"})
-        b = values_digest({"PURCHASE_ORDER": "5001"})
+        a = values_digest({"PURCHASE_ORDER": "5000"}, rule_signature=self.RULE)
+        b = values_digest({"PURCHASE_ORDER": "5001"}, rule_signature=self.RULE)
         assert a != b
 
     def test_none与空串等价(self) -> None:
-        assert values_digest({"Q": None}) == values_digest({"Q": ""})
+        assert values_digest({"Q": None}, rule_signature=self.RULE) == values_digest(
+            {"Q": ""}, rule_signature=self.RULE
+        )
+
+    def test_严重度变化则摘要变化(self) -> None:
+        """值一个字没动、只是规则把它从 REVIEW 调成 CRITICAL —— 前提必须算变了。
+
+        不变的话，那条早被标成「已接受差异」的记录会带着旧裁决出现在报告里，
+        看起来像「这条新的 CRITICAL 已经有人看过并接受了」。
+        """
+        values = {"PURCHASE_ORDER": "5000", "PROFORMA_INVOICE": "4800"}
+        before = values_digest(values, rule_signature="REVIEW:q_to_po.quantity")
+        after = values_digest(values, rule_signature="CRITICAL:q_to_po.quantity")
+        assert before != after
+
+    def test_规则id变化则摘要变化(self) -> None:
+        """严重度恰好相同、但换了一条规则产出它 —— 判断依据同样变了。"""
+        values = {"PURCHASE_ORDER": "5000"}
+        assert values_digest(values, rule_signature="REVIEW:rule_a") != values_digest(
+            values, rule_signature="REVIEW:rule_b"
+        )
+
+    def test_规则签名不会被值伪造(self) -> None:
+        """把规则签名拼进取值串就能撞车的话，这层保护是纸糊的。"""
+        a = values_digest({"Q": "x"}, rule_signature="REVIEW:r")
+        b = values_digest({"Q": "x|@rule=REVIEW:r"}, rule_signature="")
+        assert a != b
 
 
 class TestIdentityStrength:

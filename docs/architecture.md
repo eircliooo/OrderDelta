@@ -34,7 +34,7 @@ MVP-0 的**全链路已经贯通**：上传 → 解析 → 提取 → 标准化 
 
 **仍然缺的**（详见 [`limitations.md`](limitations.md)）：`extracted_field` / `line_item`
 未落库（每次从原始文件重新解析）、`ParseLimits.timeout_seconds` 未强制执行、
-`unmapped_headers` 未在界面展示、`input_fingerprint()` 缺 SPEC §3.2 要求的 `rules:` 段、
+`unmapped_headers` 未在界面展示、
 SPEC §12.2 的 `GET /differences/{id}/evidence` 端点未实现、Excel 导出与 PDF 属 MVP-1。
 （SPEC §17 的 `docs/golden-report.md` 与 pytest 钩子**已实现**，是 16 组不是 12 组。）
 

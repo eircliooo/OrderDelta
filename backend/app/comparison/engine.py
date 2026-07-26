@@ -120,8 +120,12 @@ def _values_map(cells: dict[DocumentRole, ValueCell]) -> dict[str, ValueCell]:
     return {role.value: cell for role, cell in sorted(cells.items(), key=lambda kv: kv[0].value)}
 
 
-def _digest(cells: dict[DocumentRole, ValueCell]) -> str:
-    return values_digest({role.value: cell.value for role, cell in cells.items()})
+def _digest(cells: dict[DocumentRole, ValueCell], severity: Severity, severity_rule_id: str) -> str:
+    """判断依据摘要 = 各角色取值 + 当时告诉用户的严重度及其规则 id。见 `values_digest`。"""
+    return values_digest(
+        {role.value: cell.value for role, cell in cells.items()},
+        rule_signature=f"{severity.value}:{severity_rule_id}",
+    )
 
 
 def _has_user_input(cells: dict[DocumentRole, ValueCell]) -> bool:
@@ -169,7 +173,7 @@ def _make_difference(
         severity_rule_id=severity_rule_id,
         chain_stage=chain_stage,
         values_by_document=_values_map(cells),
-        values_digest=_digest(cells),
+        values_digest=_digest(cells, severity, severity_rule_id),
         explanation_key=explanation_key,
         explanation_params=explanation_params,
         evidence_ids=evidence_ids,

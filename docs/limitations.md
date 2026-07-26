@@ -182,8 +182,9 @@ SPEC §3.2 定义但**尚未落库**的：
 |---|---|---|
 | **处理超时未强制执行** | `ParseLimits.timeout_seconds = 30` | 字段存在，**没有任何代码使用它**，而且**刻意不在解析器内部实现**：真正耗时的 `load_workbook` 不可中断，往行遍历里插墙钟判断会把系统时钟读进解析路径，直接和 Gate-0 第 15 条确定性冲突。正确位置是请求层（独立进程 / worker）。构造得当的文件可让一次上传长时间占用工作线程。见 [`security.md`](security.md) §4.2 |
 | **`docs/validation-report.md` 与 `docs/golden-report.md` 是跑出来的** | 前者由 `scripts/verify.sh` 写，后者由 `backend/tests/conftest.py` 的 `pytest_sessionfinish` 钩子写 | 两份都**已实现**（golden 是 16 组不是 SPEC 写的 12 组）。但它们是**产物不是源码**：干净 clone 出来没有，跑过才有；且当前 `docs/` 整个是 untracked 状态，本地重跑会无痕覆盖。golden 报告有三道闸门（test_golden 被收集过 / 本轮 `exitstatus == 0` / 16 组一组不少），任一不满足就保留上一份 |
-| **改了比较规则后，旧审核裁决会被静默继承**（⚠️ 当前最严重的一条） | `services/projects.py::input_fingerprint()` | SPEC §3.2 把 `comparison_input_fingerprint` 定义为**三段**子哈希 `docs:…\|corrections:…\|rules:…`，实现只有前两段，**没有 `rules:` 段**。而且强身份差异的继承根本不看 fingerprint——它只比 `premise_digest == values_digest`，`values_digest` 又只由 `role=值` 构成（`domain/identity.py:126`）。**失效形态**：把某字段从 `REVIEW` 调成 `CRITICAL` 后重跑，一条早就被标成「已接受差异」的记录会原样带着旧裁决出现在报告里，看起来像「这条新的 CRITICAL 已经有人看过并接受了」。补 `rules:` 段只能修好弱身份跨轮那一半；要真正闭合，规则版本必须进入**前提**比较（即 `values_digest` 或 `premise_digest`），代价是任何一次规则改动都会让全部裁决转为待确认 |
+| ~~改了比较规则后，旧审核裁决会被静默继承~~ ✅ 已修 | `services/projects.py::input_fingerprint()` + `domain/identity.py::values_digest()` | `input_fingerprint` 已补齐 SPEC §3.2 的第三段 `rules:`（哈希 `render_comparison_rules_md()` 全文，改任何一条规则它必变）；判断依据摘要也带上了「当时告诉用户的严重度 + 产出它的规则 id」。现在**只有严重度真的变了的那些差异**转为待确认，值和规则都没动的照常继承。见 `test_调高严重度后旧裁决不再被静默继承`（去掉修复即红） |
 | **`GET /api/v1/differences/{id}/evidence` 未实现** | SPEC §12.2 明列的端点 | 路由不存在。证据目前只能随差异列表整体返回，无法按单条差异取证据 |
+| ~~删单份文档留下孤儿证据~~ ✅ 已修 | `services/projects.py::delete_document()` | `evidence.document_id` 仍无外键（级联挂在 `project_id`），改为删文档时主动作废③计算产物并把项目退回 DRAFT。见 `test_删单份文档不留孤儿证据` |
 | **`unmapped_headers` 未展示** | `HeaderDetection.unmapped_headers` | 数据已收集，界面与报告都没有展示。用户无从知道「有一列没被读懂」 |
 | **解析确认页** | — | 属 MVP-1。用户当前无法在比较前检查提取结果是否正确 |
 | **Excel 导出** | — | 属 MVP-1。**落地时必须实现公式注入防护**（见 `security.md` §3.1） |

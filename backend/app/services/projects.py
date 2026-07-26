@@ -48,6 +48,7 @@ from app.domain.enums import (
     ProjectStatus,
     ReviewStatus,
 )
+from app.domain.fields import rules_digest
 from app.domain.models import DifferenceDraft, ValueCell
 from app.extraction.snapshot import CorrectionInput
 from app.parsers.base import DocumentInput
@@ -223,12 +224,42 @@ def _active_documents(session: Session, project_id: str) -> list[Document]:
     )
 
 
+def _drop_computed(session: Session, project_id: str) -> None:
+    """删掉③计算产物（match_group / match_member / difference / evidence）。
+
+    **④ 人工裁决一行都不碰**——`difference_review` 有独立生命周期，
+    重跑时靠 `difference_key` 重新挂回来。
+    """
+    group_ids = list(
+        session.scalars(select(MatchGroup.id).where(MatchGroup.project_id == project_id))
+    )
+    if group_ids:
+        session.execute(delete(MatchMember).where(MatchMember.match_group_id.in_(group_ids)))
+    session.execute(delete(MatchGroup).where(MatchGroup.project_id == project_id))
+    session.execute(delete(Difference).where(Difference.project_id == project_id))
+    session.execute(delete(Evidence).where(Evidence.project_id == project_id))
+    session.flush()
+
+
 def delete_document(session: Session, project_id: str, document_id: str) -> None:
     document = session.get(Document, document_id)
     if document is None or document.project_id != project_id:
         raise ServiceError("DOCUMENT_NOT_FOUND", "文档不存在", status_code=404)
     (settings.files_dir / document.stored_filename).unlink(missing_ok=True)
     session.delete(document)
+
+    # 删掉一份文档 = 上一轮比较的输入已经不成立，③ 计算产物必须整体作废。
+    #
+    # `evidence.document_id` 没有外键（级联只挂在 project_id 上），所以不清理的话
+    # 那些证据行会变成孤儿：它们仍会被 difference.evidence_ids 引用，报告里照样渲染出
+    # 「引用原文：某某单元格」，而那份单据已经不在项目里了——用户看到的是一条
+    # 指向已删除文件的证据，无从核对也无从察觉。
+    _drop_computed(session, project_id)
+    project = session.get(Project, project_id)
+    if project is not None:
+        project.status = ProjectStatus.DRAFT.value
+        project.compared_at = None
+        project.comparison_input_fingerprint = None
     session.flush()
 
 
@@ -272,16 +303,31 @@ def _process(session: Session, document: Document) -> DocumentProcessing:
 
 
 def input_fingerprint(session: Session, project_id: str) -> str:
-    """项目输入指纹：文档内容 + 人工修正。用于区分「同一轮」与「重跑后」。"""
-    parts: list[str] = []
+    """项目输入指纹：文档内容 + 人工修正 + **比较规则版本**。
+
+    SPEC §3.2 把 `comparison_input_fingerprint` 定义为三段子哈希
+    `docs:…|corrections:…|rules:…`。`rules:` 段不可省：它决定「弱身份差异跨轮不继承」
+    里的「跨轮」怎么算。少了它，改完比较规则重跑会被判成同一轮，
+    弱身份差异（多成员组之类）的旧裁决会原地留着——而规则刚变，那正是最该重看的时候。
+
+    强身份差异的继承走的是另一条路（前提摘要，见 `domain/identity.py::values_digest`），
+    规则版本在那边通过严重度签名参与。两条路都要堵，只堵一条等于没堵。
+    """
+    docs: list[str] = []
+    corrections: list[str] = []
     for document in _active_documents(session, project_id):
-        parts.append(f"{document.role}:{document.sha256}")
+        docs.append(f"{document.role}:{document.sha256}")
         for correction in _corrections_for(session, document.id):
-            parts.append(
+            corrections.append(
                 f"{document.role}:{correction.scope}:{correction.line_key}:"
                 f"{correction.field_name}={correction.user_value}"
             )
-    return hashlib.sha256("|".join(sorted(parts)).encode("utf-8")).hexdigest()
+    payload = (
+        f"docs:{'|'.join(sorted(docs))}"
+        f"|corrections:{'|'.join(sorted(corrections))}"
+        f"|rules:{rules_digest()}"
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def build_result(session: Session, project_id: str) -> ProjectResult:
@@ -305,16 +351,7 @@ def run_comparison(session: Session, project_id: str) -> ProjectResult:
             "至少需要两份可解析的文件才能运行检查（未上传或解析失败的角色不参与比较）",
         )
 
-    # ③ 计算产物整体删除重算；④ 人工裁决一行都不碰
-    group_ids = list(
-        session.scalars(select(MatchGroup.id).where(MatchGroup.project_id == project_id))
-    )
-    if group_ids:
-        session.execute(delete(MatchMember).where(MatchMember.match_group_id.in_(group_ids)))
-    session.execute(delete(MatchGroup).where(MatchGroup.project_id == project_id))
-    session.execute(delete(Difference).where(Difference.project_id == project_id))
-    session.execute(delete(Evidence).where(Evidence.project_id == project_id))
-    session.flush()
+    _drop_computed(session, project_id)
 
     for evidence in result.evidence.values():
         session.add(
