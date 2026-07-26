@@ -780,16 +780,54 @@ def render_comparison_rules_md() -> str:
     return "\n".join(lines) + "\n"
 
 
+#: 参与 `rules_digest()` 的 FieldSpec 字段 —— **只列真正影响判定的**。
+#:
+#: 刻意排除 `label_zh` / `tolerance_note` / `ambiguity_policy` / `example`：
+#: 这四个是纯文案，除了渲染进 `comparison-rules.md` 之外不参与任何判定
+#: （全仓可 grep 验证）。把它们算进指纹会导致——给某个字段的「示例」补一句中文说明，
+#: 就让全部**弱身份**裁决在 `resolve_review()` 里走 `not same_run` 分支被丢弃；
+#: 而那条分支返回的是 `(OPEN, note=None)`，**不是** NEEDS_CONFIRMATION：
+#: 用户的备注在界面上直接消失，既没有提示也没有旧前提可看。
+#: 一次纯文案改动换来一批无声丢失的人工判断，代价和收益完全不成比例。
+_RULE_DIGEST_FIELDS: tuple[str, ...] = (
+    "key",
+    "scope",
+    "value_kind",
+    "comparator",
+    "severity_by_stage",
+    "aliases",
+    "column_class",
+    "missing_policy",
+)
+
+
 def rules_digest() -> str:
     """比较规则整体的版本指纹。SPEC §3.2 要求 `comparison_input_fingerprint` 含 `rules:` 段。
 
-    直接哈希 `render_comparison_rules_md()` 的全文，而不是另外手写一份「规则版本号」：
+    由 FieldSpec 注册表里**影响判定的那些字段**规范化序列化后哈希，
+    而不是另外手写一份「规则版本号」：手写版本号必然会被忘记递增，
+    而忘记的后果恰好是「规则改了但系统当作没改」——也就是这个指纹存在的唯一目的失守。
 
-    - 那份 Markdown 已经是注册表的**规范化全量序列化**（归一化方式、比较方式、
-      逐链路阶段的严重度、容差、别名表全在里面），改任何一条规则它必变；
-    - 手写版本号必然会被忘记递增 —— 而忘记的后果恰好是「规则改了但系统当作没改」，
-      也就是这个指纹存在的唯一目的失守；
-    - 它已经被 `tools.gen_docs --check` 每次验证过与代码同步（硬约束 #12），
-      等于这个指纹的稳定性有现成的机械保证。
+    排除纯文案字段的理由见 `_RULE_DIGEST_FIELDS`。
     """
-    return hashlib.sha256(render_comparison_rules_md().encode("utf-8")).hexdigest()
+    parts: list[str] = []
+    for spec in (*_LINE_ITEM_FIELDS, *_DOCUMENT_FIELDS):
+        for name in _RULE_DIGEST_FIELDS:
+            value = getattr(spec, name)
+            if name == "severity_by_stage":
+                rendered = ",".join(
+                    f"{stage.value}={value[stage].value}" for stage in sorted(value, key=str)
+                )
+            elif isinstance(value, tuple):
+                rendered = ",".join(value)
+            else:
+                rendered = getattr(value, "value", str(value))
+            parts.append(f"{spec.key}.{name}={rendered}")
+    # SKU 存在性有向表也决定严重度，同样必须进指纹。
+    parts += [
+        f"sku_presence.{'+'.join(sorted(r.value for r in roles))}={sev.value}"
+        for roles, sev in sorted(
+            SKU_PRESENCE_SEVERITY.items(), key=lambda kv: sorted(r.value for r in kv[0])
+        )
+    ]
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()

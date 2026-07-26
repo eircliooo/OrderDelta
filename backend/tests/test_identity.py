@@ -176,11 +176,23 @@ class TestValuesDigest:
             values, rule_signature="REVIEW:rule_b"
         )
 
-    def test_规则签名不会被值伪造(self) -> None:
-        """把规则签名拼进取值串就能撞车的话，这层保护是纸糊的。"""
-        a = values_digest({"Q": "x"}, rule_signature="REVIEW:r")
-        b = values_digest({"Q": "x|@rule=REVIEW:r"}, rule_signature="")
-        assert a != b
+    def test_分隔符出现在原文里不会造成撞车(self) -> None:
+        """`|` 与 `=` 在单据原文里完全正常（备注、规格串）。不转义就会歧义：
+        两组不同的取值拼出同一个串 → 两条差异共用一个摘要 → 裁决挂错行。
+
+        这条测试原先写成「把 @rule 拼进取值串」，那两个输入天然不可能相等，
+        断言恒成立 —— 提供的是虚假保证，改成可注入的拼法它照样绿。
+        """
+        assert values_digest({"A": "x", "B": "y"}, rule_signature="r") != values_digest(
+            {"A": "x|B=y"}, rule_signature="r"
+        )
+        assert values_digest({"A": "x"}, rule_signature="r|A=y") != values_digest(
+            {"A": "x|A=y"}, rule_signature="r"
+        )
+        # 转义字符本身也要能被区分开
+        assert values_digest({"A": "a\\|b"}, rule_signature="r") != values_digest(
+            {"A": "a\\", "b": ""}, rule_signature="r"
+        )
 
 
 class TestIdentityStrength:

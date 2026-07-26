@@ -150,7 +150,7 @@ def upload_document(
     payload: bytes,
 ) -> Document:
     """保存并解析一份文档。同一角色的旧文档会被标记为 superseded。"""
-    project = get_project(session, project_id)
+    get_project(session, project_id)  # 只为校验项目存在（不存在会抛 404）
     suffix = _validate_upload(filename, mime_type, payload)
 
     settings.ensure_dirs()
@@ -198,9 +198,8 @@ def upload_document(
     )
     document.parse_detail = processing.parsed.detail
     document.parse_diagnostics = json.dumps(dict(processing.parsed.diagnostics), ensure_ascii=False)
-    project.status = (
-        ProjectStatus.READY if _usable_count(session, project_id) >= 2 else (ProjectStatus.DRAFT)
-    )
+    # 上传（含同角色替换）改变了比较输入，上一轮结果整体作废并重置状态。
+    invalidate_comparison(session, project_id)
     session.flush()
     return document
 
@@ -241,25 +240,41 @@ def _drop_computed(session: Session, project_id: str) -> None:
     session.flush()
 
 
+def invalidate_comparison(session: Session, project_id: str) -> None:
+    """文档集合一变，上一轮比较的输入就不成立了：③ 计算产物整体作废。
+
+    **必须挂在每一条改动文档集合的路径上**（上传 / 替换 / 删除），不能只挂删除：
+    界面上根本没有「删除单份文档」这个操作（`frontend/src/api/client.ts` 里只有
+    `deleteProject`），用户换文件的唯一方式是**用同角色重新上传**走 supersede 分支——
+    那条路会把旧文件从磁盘 unlink 掉，却留下整套按旧文件算出来的差异与证据。
+
+    不作废的后果是两个结论互相打架：`GET /differences` 读库里的旧结果（旧数值、
+    旧文件名，而那个文件已经不在磁盘上了），`report.html` 走 `build_result()` 现场
+    重解析（新数值、新文件名）。同一批数据，屏幕和导出的报告说两套话，
+    而屏幕那套还带着看起来有效的人工裁决。
+
+    ④ 人工裁决（`difference_review`）一行都不碰——用户可能只是传错了一份文件。
+    """
+    _drop_computed(session, project_id)
+    project = session.get(Project, project_id)
+    if project is None:
+        return
+    project.compared_at = None
+    project.comparison_input_fingerprint = None
+    # 与 upload_document 同一套口径：能不能跑取决于可用文档数，不是「刚删过东西」。
+    project.status = (
+        ProjectStatus.READY if _usable_count(session, project_id) >= 2 else ProjectStatus.DRAFT
+    )
+
+
 def delete_document(session: Session, project_id: str, document_id: str) -> None:
     document = session.get(Document, document_id)
     if document is None or document.project_id != project_id:
         raise ServiceError("DOCUMENT_NOT_FOUND", "文档不存在", status_code=404)
     (settings.files_dir / document.stored_filename).unlink(missing_ok=True)
     session.delete(document)
-
-    # 删掉一份文档 = 上一轮比较的输入已经不成立，③ 计算产物必须整体作废。
-    #
-    # `evidence.document_id` 没有外键（级联只挂在 project_id 上），所以不清理的话
-    # 那些证据行会变成孤儿：它们仍会被 difference.evidence_ids 引用，报告里照样渲染出
-    # 「引用原文：某某单元格」，而那份单据已经不在项目里了——用户看到的是一条
-    # 指向已删除文件的证据，无从核对也无从察觉。
-    _drop_computed(session, project_id)
-    project = session.get(Project, project_id)
-    if project is not None:
-        project.status = ProjectStatus.DRAFT.value
-        project.compared_at = None
-        project.comparison_input_fingerprint = None
+    session.flush()
+    invalidate_comparison(session, project_id)
     session.flush()
 
 

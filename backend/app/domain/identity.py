@@ -139,8 +139,16 @@ def values_digest(values_by_role: dict[str, str | None], *, rule_signature: str)
     失去人工复核。带上规则签名后，**只有严重度真的变了的那些差异**转为待确认，
     值和规则都没动的照常继承，不会因为一次无关的规则微调让人重审几百条。
     """
-    parts = [f"{role}={values_by_role[role] or ''}" for role in sorted(values_by_role)]
-    parts.append(f"@rule={rule_signature}")
+
+    # 单据原文里出现 `|` 或 `=` 完全正常（备注、规格串），不转义就会歧义：
+    # {"A": "x", "B": "y"} 与 {"A": "x|B=y"} 会拼成同一个串。角色名是固定枚举、
+    # 撞车需要原文里恰好出现 `|PROFORMA_INVOICE=`，现实中极罕见 —— 但「极罕见」
+    # 不是不转义的理由，这是身份函数，撞车的后果是把一条差异的裁决挂到另一条上。
+    def esc(text: str) -> str:
+        return text.replace("\\", "\\\\").replace("|", "\\|").replace("=", "\\=")
+
+    parts = [f"{esc(role)}={esc(values_by_role[role] or '')}" for role in sorted(values_by_role)]
+    parts.append(f"@rule={esc(rule_signature)}")
     return _digest("|".join(parts))
 
 

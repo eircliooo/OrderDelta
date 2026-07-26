@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -295,10 +296,18 @@ class TestFullFlow:
                 )
                 assert left == 0, f"删文档后 {model.__tablename__} 还剩 {left} 行孤儿"
 
-        # 项目要退回未比较状态，否则界面会拿着一份已作废的结论当最新结果显示
+        # 必须退回「未比较」，否则界面会拿着一份已作废的结论当最新结果显示。
+        # 但 status 走的是「可用文档数」口径（与上传路径一致），删掉三份里的一份
+        # 之后剩下两份仍然可以跑，所以是 READY 而不是 DRAFT——
+        # 「刚删过东西」不该让一个跑得动的项目显示成草稿。
         project = client.get(f"/api/v1/projects/{project_id}").json()
-        assert project["status"] == "DRAFT"
         assert project["compared_at"] is None
+        assert project["status"] == "READY"
+        assert project["severity_counts"] == dict.fromkeys(project["severity_counts"], 0)
+
+        # 没跑过检查就不给导出报告：那份东西最可能被转发给客户
+        report = client.get(f"/api/v1/projects/{project_id}/report.html")
+        assert report.status_code == 409, report.status_code
 
 
 class TestRerunPreservesReviews:
@@ -470,6 +479,140 @@ class TestRerunPreservesReviews:
         assert pi_value["value"] == "9.99"
         assert pi_value["parser_value"] == "2.50"
         assert target["has_user_input"] is True
+
+
+class TestStaleResultsAreInvalidated:
+    """换了文件之后，上一轮的结论必须整体作废。
+
+    这两条都是「屏幕和报告各说一套」的失效：一边读库里的旧结果，
+    一边现场重算，同一批数据给出互相矛盾的结论，而屏幕那套还带着
+    看起来有效的人工裁决。
+    """
+
+    def test_同角色重新上传作废上一轮结果(self, client: TestClient, tmp_path: Path) -> None:
+        """**界面上唯一能换文件的操作就是这个**（前端没有删除单份文档的入口）。
+
+        旧实现只在 delete_document 上作废③计算产物，而 supersede 分支会把旧文件
+        从磁盘 unlink 掉、却把整套按旧文件算出来的差异与证据留在库里。
+        """
+        from sqlalchemy import func
+        from sqlalchemy import select as sa_select
+
+        from app.db.models import Difference, Evidence
+        from app.db.session import session_scope
+
+        project_id = _setup_project(client, tmp_path)
+        assert client.post(f"/api/v1/projects/{project_id}/compare").status_code == 200
+        before = client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+        assert before, "先得有差异，否则这条测试测不到东西"
+
+        # 客户改单，用新的 PO 覆盖上传同一个角色
+        rows = order_rows(
+            title="PURCHASE ORDER",
+            doc_label="PO No.",
+            doc_no="PO-8899-R2",
+            date="2026-07-20",
+            items=[
+                ("AB-100", "Ceramic Mug 350ml", 1500, "PCS", "1.25", "1875.00"),
+                *BASE_ITEMS[1:],
+            ],
+            grand_total="3695.00",
+        )
+        path = write_xlsx(tmp_path / "po_v2.xlsx", {"PURCHASE ORDER": rows})
+        _upload(client, project_id, DocumentRole.PURCHASE_ORDER, path.read_bytes())
+
+        project = client.get(f"/api/v1/projects/{project_id}").json()
+        assert project["compared_at"] is None, "换了文件却还挂着上次的检查时间"
+        assert client.get(f"/api/v1/projects/{project_id}/differences").json()["items"] == [], (
+            "换文件后仍返回按旧文件算出来的差异"
+        )
+        with session_scope() as session:
+            for model in (Evidence, Difference):
+                left = session.scalar(
+                    sa_select(func.count()).select_from(model).where(model.project_id == project_id)
+                )
+                assert left == 0, f"{model.__tablename__} 还剩 {left} 行指向已被替换的文件"
+
+        # 重新跑一次应当正常产出（作废不等于把项目弄坏）
+        assert client.post(f"/api/v1/projects/{project_id}/compare").status_code == 200
+        assert client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+
+    def test_未解释差额变化后旧裁决不再被静默继承(self, client: TestClient, tmp_path: Path) -> None:
+        """「存在未解释差额 X」这条差异的关键数字 X 不在取值里，只活在说明参数里。
+
+        摘要若只取「各角色取值 + 严重度 + 规则 id」，X 从 250 变成 1150 时三者全都不变
+        （severity 恒为 REVIEW、规则 id 恒为常量），旧的「已接受」原样继承——
+        报告上写着「1150 的差额已经有人看过并接受了」。
+
+        自己造场景而不用 `_setup_project`：那份夹具的 Σ行金额与总金额是对得上的，
+        跑不出未解释差额。**不用 skip**（硬约束 #16 零 skip）。
+        """
+        created = client.post("/api/v1/projects", json={"name": "未解释差额"})
+        project_id: str = created.json()["id"]
+        # PI 的总金额比 Σ行金额多 250（真实单据里的运费/模具费），PO 对得上
+        _upload(
+            client,
+            project_id,
+            DocumentRole.PURCHASE_ORDER,
+            _xlsx_bytes(tmp_path, DocumentRole.PURCHASE_ORDER),
+        )
+        _upload(
+            client,
+            project_id,
+            DocumentRole.PROFORMA_INVOICE,
+            _xlsx_bytes(
+                tmp_path,
+                DocumentRole.PROFORMA_INVOICE,
+                grand_total=str(Decimal(BASE_GRAND_TOTAL) + Decimal("250.00")),
+            ),
+        )
+        client.post(f"/api/v1/projects/{project_id}/compare")
+        items = client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+
+        delta = next(i for i in items if i["explanation_key"] == "unexplained_total_delta")
+        assert delta["explanation_params"]["delta"] == "250.00", delta["explanation_params"]
+
+        assert (
+            client.put(
+                f"/api/v1/projects/{project_id}/reviews/{delta['difference_key']}",
+                json={
+                    "review_status": "ACCEPTED_DIFFERENCE",
+                    "review_note": "运费 250，已跟客户确认",
+                },
+            ).status_code
+            == 200
+        )
+
+        # 某一行金额被抄错一位，**总金额一个字没动** -> 差额从 250 涨到 1150
+        assert (
+            client.post(
+                f"/api/v1/projects/{project_id}/corrections",
+                json={
+                    "role": "PROFORMA_INVOICE",
+                    "scope": "LINE_ITEM",
+                    "line_key": "sku:AB-100#1",
+                    "field_name": "line_total",
+                    "user_value": "350.00",
+                    "reason": "核对后发现抄错一位",
+                },
+            ).status_code
+            == 201
+        )
+        client.post(f"/api/v1/projects/{project_id}/compare")
+        rerun = {
+            i["difference_key"]: i
+            for i in client.get(f"/api/v1/projects/{project_id}/differences").json()["items"]
+        }
+        after = rerun.get(delta["difference_key"])
+        assert after is not None, "差异本身不该消失，消失说明这条测试测错了东西"
+        assert after["explanation_params"]["delta"] != "250.00", (
+            "差额没变，这条测试没有验证到任何东西"
+        )
+        assert after["review_status"] == "NEEDS_CONFIRMATION", (
+            f"差额从 250.00 变成 {after['explanation_params']['delta']}，"
+            f"旧裁决却仍被原样继承（{after['review_status']}）"
+        )
+        assert after["review_note"] == "运费 250，已跟客户确认", "备注不该丢"
 
 
 class TestUploadValidation:

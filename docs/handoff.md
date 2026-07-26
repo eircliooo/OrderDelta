@@ -12,7 +12,7 @@
 
 ## 1. 一句话现状
 
-**MVP-0（纯 XLSX 全链路）已完成，`bash scripts/verify.sh` 18 步全绿，945 条后端测试 + 62 条前端测试通过，零 skip。**
+**MVP-0（纯 XLSX 全链路）已完成，`bash scripts/verify.sh` 18 步全绿，947 条后端测试 + 62 条前端测试通过，零 skip。**
 
 能跑通的完整链路：上传 2–3 份 `.xlsx` → 解析提取 → SKU 精确匹配 → N 元比较 →
 证据落库 → 人工审核 → 自包含 HTML 报告 → 删除项目。
@@ -61,7 +61,7 @@ backend\.venv\Scripts\python.exe
 
 ```bash
 cd backend
-.venv/Scripts/python.exe -m pytest -q                 # 945 passed
+.venv/Scripts/python.exe -m pytest -q                 # 947 passed
 .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -137,14 +137,19 @@ SPEC §11.2 把它写作 `ValueResolver.snapshot(project_id)`，**本仓库没�
 插墙钟判断会把系统时钟读进解析路径，**直接破坏 Gate-0 第 15 条**
 （`tools.determinism` 的 3 个进程 sha256 一致会随机变红）。正确位置是请求层。
 
-### 5.3 ✅ 已修：删除单份文档留下孤儿证据
+### 5.3 ✅ 已修：换文件之后旧结论没有作废
 
-`evidence.document_id` 仍然**没有外键**（级联只挂在 `project_id` 上），
-改的是语义：删掉一份文档 = 上一轮比较的输入已不成立，所以主动作废③计算产物
-（`_drop_computed`）并把项目退回 `DRAFT`。
+最初只修了 `delete_document`，而**界面上根本没有删除单份文档的入口**
+（`frontend/src/api/client.ts` 里只有 `deleteProject`）——用户换文件的唯一方式是
+用同角色重新上传走 supersede 分支，那条路会把旧文件从磁盘 unlink 掉，
+却留下整套按旧文件算出来的差异与证据。**修的是够不到的那条路。**
 
-不这么做的话，那些证据行会留在库里、仍被 `difference.evidence_ids` 引用，
-报告里照样渲染出「引用原文：某某单元格」——指向一份已经不在项目里的文件。
+现在 `invalidate_comparison()` 挂在每一条改动文档集合的路径上（上传 / 替换 / 删除）：
+作废③计算产物、清空 `compared_at`、按可用文档数重置状态。④ 人工裁决一行不碰。
+
+同时 `report.html` 在 `compared_at is None` 时返回 409：它走 `build_result()` 现场重算、
+不读库里的③产物，所以哪怕从未运行过检查也能渲染出一份完整报告——
+而报告恰恰是最可能被转发给客户的那份东西。
 
 ### 5.4 其他未实现（已在 `limitations.md` 记账）
 

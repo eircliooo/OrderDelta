@@ -359,6 +359,16 @@ def add_correction(project_id: str, body: CorrectionIn, session: DbSession) -> d
 @router.get("/projects/{project_id}/report.html")
 def report_html(project_id: str, session: DbSession, generated_at: str | None = None) -> Response:
     project = svc.get_project(session, project_id)
+    # 报告走 build_result() 现场重算，**不读库里的 ③ 计算产物**，所以哪怕从未运行过
+    # 检查它也能渲染出一份完整报告。而报告恰恰是最可能被转发给客户/工厂的那份东西：
+    # 一份「没人跑过、也和操作界面上的 0 条差异互相矛盾」的结论发出去，
+    # 比没有报告危险得多。要求先运行检查。
+    if project.compared_at is None:
+        raise svc.ServiceError(
+            "COMPARISON_NOT_RUN",
+            "该项目尚未运行检查，无法导出报告。请先点「运行检查」。",
+            status_code=409,
+        )
     result = svc.build_result(session, project.id)
 
     # 报告是**发出去**的东西：已裁决过的条目如果和从未看过的条目长得一样，

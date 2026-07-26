@@ -120,11 +120,31 @@ def _values_map(cells: dict[DocumentRole, ValueCell]) -> dict[str, ValueCell]:
     return {role.value: cell for role, cell in sorted(cells.items(), key=lambda kv: kv[0].value)}
 
 
-def _digest(cells: dict[DocumentRole, ValueCell], severity: Severity, severity_rule_id: str) -> str:
-    """判断依据摘要 = 各角色取值 + 当时告诉用户的严重度及其规则 id。见 `values_digest`。"""
+def _digest(
+    cells: dict[DocumentRole, ValueCell],
+    severity: Severity,
+    severity_rule_id: str,
+    explanation_key: str,
+    explanation_params: dict[str, str],
+) -> str:
+    """判断依据摘要 = **当时摆在用户面前的全部内容**。
+
+    定义成「各角色取值」是不够的，因为有些差异的关键数字根本不在 `cells` 里。
+    最典型的是「存在未解释差额 X」：`cells` 只有 grand_total 一个数，差额 X 只活在
+    `explanation_params` 里，严重度恒为 REVIEW、规则 id 恒为常量。于是——
+
+        PI 总金额 2250、Σ行金额 2000 → 「未解释差额 250.00」，用户接受，
+        备注「运费 250，已跟客户确认」。此后某一行金额被抄错一位（1000 → 100），
+        总金额一字未动 → 差额变成 1150.00，而摘要三个组成部分全都没变
+        → 旧裁决原样继承，报告上写着「1150 的差额已经有人看过并接受了」。
+
+    所以摘要取「用户当初看到的那句话本身」：取值 + 严重度 + 规则 id +
+    说明模板 + 模板参数。参数按键排序，dict 顺序不得污染摘要。
+    """
+    params = "&".join(f"{k}={explanation_params[k]}" for k in sorted(explanation_params))
     return values_digest(
         {role.value: cell.value for role, cell in cells.items()},
-        rule_signature=f"{severity.value}:{severity_rule_id}",
+        rule_signature=f"{severity.value}:{severity_rule_id}:{explanation_key}:{params}",
     )
 
 
@@ -173,7 +193,9 @@ def _make_difference(
         severity_rule_id=severity_rule_id,
         chain_stage=chain_stage,
         values_by_document=_values_map(cells),
-        values_digest=_digest(cells, severity, severity_rule_id),
+        values_digest=_digest(
+            cells, severity, severity_rule_id, explanation_key, explanation_params
+        ),
         explanation_key=explanation_key,
         explanation_params=explanation_params,
         evidence_ids=evidence_ids,
